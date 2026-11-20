@@ -1,11 +1,10 @@
-// TODO: Implement this module.
-import { env } from "../../config/env.js";
-import { monnifyRequest } from "./monnify.client.js";
-import { toMonnifyDate } from "../../utils/date.js";
+import { env } from '../../config/env.js';
+import { monnifyRequest } from './monnify.client.js';
+import { toMonnifyDate } from '../../utils/date.js';
 
 export async function validateAccount({ accountNumber, bankCode }) {
   const body = await monnifyRequest({
-    method: "GET",
+    method: 'GET',
     url: env.MONNIFY_VALIDATE_PATH,
     params: { accountNumber, bankCode },
   });
@@ -21,27 +20,21 @@ export async function validateAccount({ accountNumber, bankCode }) {
  * one fresh account per invoice, custom accountName, custom expiry.
  */
 export async function createDynamicInvoiceAccount({
-  reference,
-  amount,
-  description,
-  customerName,
-  customerEmail,
-  accountName,
-  expiresAt,
+  reference, amount, description, customerName, customerEmail, accountName, expiresAt,
 }) {
   const body = await monnifyRequest({
-    method: "POST",
-    url: "/api/v1/invoice/create",
+    method: 'POST',
+    url: '/api/v1/invoice/create',
     data: {
-      amount, // number, NGN
-      invoiceReference: reference, // our BZP reference
+      amount,                       // number, NGN
+      invoiceReference: reference,  // our BZP reference
       description,
-      currencyCode: "NGN",
+      currencyCode: 'NGN',
       contractCode: env.MONNIFY_CONTRACT_CODE,
-      apiKey: env.MONNIFY_API_KEY, // listed as required in Monnify's invoice docs
+      apiKey: env.MONNIFY_API_KEY,  // listed as required in Monnify's invoice docs
       customerName,
       customerEmail,
-      accountName, // "<purpose> - BezPay"
+      accountName,                  // "<purpose> - BezPay"
       expiryDate: toMonnifyDate(expiresAt),
     },
   });

@@ -1,4 +1,3 @@
--- TODO: Add initial database schema.
 CREATE DATABASE IF NOT EXISTS bezpay
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE bezpay;
@@ -9,7 +8,7 @@ USE bezpay;
 CREATE TABLE transactions (
   id                          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   reference                   VARCHAR(64)  NOT NULL,   -- BezPay public reference (BZP-...)
-  payout_reference            VARCHAR(64)  NOT NULL,   -- idempotency key sent to Monnify disbursement
+  payout_reference            VARCHAR(64)  NOT NULL,   -- CURRENT payout attempt reference sent to Monnify
 
   -- Sender
   sender_name                 VARCHAR(120) NOT NULL,
@@ -40,7 +39,7 @@ CREATE TABLE transactions (
   va_bank_name                VARCHAR(120) NULL,
   va_bank_code                VARCHAR(10)  NULL,
   monnify_transaction_ref     VARCHAR(100) NULL,       -- Monnify's transactionReference
-  monnify_payment_ref         VARCHAR(100) NULL,       -- our paymentReference sent to Monnify
+  monnify_payment_ref         VARCHAR(100) NULL,       -- our reference sent to Monnify (invoiceReference)
 
   -- State
   status ENUM(
@@ -54,7 +53,7 @@ CREATE TABLE transactions (
   ) NOT NULL DEFAULT 'PENDING_INFLOW',
   failure_reason              VARCHAR(255) NULL,
 
-  -- Timestamps
+  -- Timestamps (UTC)
   expires_at                  DATETIME NOT NULL,       -- created_at + 40 min
   paid_at                     DATETIME NULL,
   completed_at                DATETIME NULL,
@@ -78,7 +77,7 @@ CREATE TABLE transactions (
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
--- payout_logs  (one row per disbursement attempt / requery)
+-- payout_logs  (one row per disbursement attempt / requery / webhook confirm)
 -- ------------------------------------------------------------
 CREATE TABLE payout_logs (
   id                     BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -86,7 +85,7 @@ CREATE TABLE payout_logs (
   attempt_no             SMALLINT UNSIGNED NOT NULL DEFAULT 1,
   action                 ENUM('DISBURSE','REQUERY','WEBHOOK_CONFIRM') NOT NULL,
 
-  payout_reference       VARCHAR(64)  NOT NULL,        -- same reference across retries (idempotent)
+  payout_reference       VARCHAR(64)  NOT NULL,        -- unique per attempt (Monnify requirement)
   monnify_disbursement_ref VARCHAR(100) NULL,
 
   amount                 DECIMAL(15,2) NOT NULL,
@@ -100,7 +99,7 @@ CREATE TABLE payout_logs (
       'REVERSED'
   ) NOT NULL DEFAULT 'INITIATED',
 
-  monnify_status         VARCHAR(40)  NULL,            -- raw: SUCCESS, PENDING, FAILED, OTP_EMAIL_DISPATCH_FAILED...
+  monnify_status         VARCHAR(40)  NULL,            -- raw: SUCCESS, PENDING, FAILED, ...
   response_code          VARCHAR(20)  NULL,
   error_message          VARCHAR(255) NULL,
   request_payload        JSON NULL,
@@ -124,9 +123,9 @@ CREATE TABLE payout_logs (
 CREATE TABLE webhook_events (
   id                BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   idempotency_key   VARCHAR(190) NOT NULL,   -- e.g. "SUCCESSFUL_TRANSACTION:<monnify transactionReference>"
-  event_type        VARCHAR(60)  NOT NULL,   -- SUCCESSFUL_TRANSACTION, SUCCESSFUL_DISBURSEMENT, FAILED_DISBURSEMENT, ...
+  event_type        VARCHAR(60)  NOT NULL,
   monnify_reference VARCHAR(100) NULL,
-  transaction_id    BIGINT UNSIGNED NULL,    -- resolved after lookup
+  transaction_id    BIGINT UNSIGNED NULL,
   signature_valid   TINYINT(1)   NOT NULL DEFAULT 0,
 
   processing_status ENUM('RECEIVED','PROCESSED','IGNORED','FAILED')

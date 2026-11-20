@@ -1,5 +1,4 @@
-// TODO: Implement this module.
-import { monnifyRequest } from "./monnify.client.js";
+import { monnifyRequest } from './monnify.client.js';
 
 const TTL = 12 * 60 * 60 * 1000;
 let cache = { data: null, at: 0 };
@@ -7,7 +6,7 @@ let cache = { data: null, at: 0 };
 export async function getBanks() {
   if (cache.data && Date.now() - cache.at < TTL) return cache.data;
   try {
-    const body = await monnifyRequest({ method: "GET", url: "/api/v1/banks" });
+    const body = await monnifyRequest({ method: 'GET', url: '/api/v1/banks' });
     const list = body
       .map((b) => ({ code: String(b.code), name: b.name }))
       .sort((a, b) => a.name.localeCompare(b.name));

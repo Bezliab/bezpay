@@ -1,5 +1,4 @@
-// TODO: Implement this module.
-import { pool } from "../config/db.js";
+import { pool } from '../config/db.js';
 
 export async function insertTransaction(t) {
   const [res] = await pool.execute(
@@ -9,22 +8,10 @@ export async function insertTransaction(t) {
        net_amount, bezpay_fee, gateway_inflow_fee, gateway_payout_fee, total_payable, expires_at)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
-      t.reference,
-      t.payoutReference,
-      t.senderName,
-      t.senderEmail,
-      t.purpose,
-      t.bankCode,
-      t.bankName,
-      t.accountNumber,
-      t.accountName,
-      t.net,
-      t.bezpayFee,
-      t.inflowFee,
-      t.payoutFee,
-      t.total,
-      t.expiresAt,
-    ],
+      t.reference, t.payoutReference, t.senderName, t.senderEmail, t.purpose,
+      t.bankCode, t.bankName, t.accountNumber, t.accountName,
+      t.net, t.bezpayFee, t.inflowFee, t.payoutFee, t.total, t.expiresAt,
+    ]
   );
   return res.insertId;
 }
@@ -35,15 +22,8 @@ export async function setVirtualAccount(id, va) {
         SET va_account_number=?, va_account_name=?, va_bank_name=?, va_bank_code=?,
             monnify_transaction_ref=?, monnify_payment_ref=?
       WHERE id=?`,
-    [
-      va.accountNumber,
-      va.accountName,
-      va.bankName,
-      va.bankCode,
-      va.transactionReference,
-      va.invoiceReference,
-      id,
-    ],
+    [va.accountNumber, va.accountName, va.bankName, va.bankCode,
+     va.transactionReference, va.invoiceReference, id]
   );
 }
 
@@ -51,7 +31,7 @@ export async function markFailed(id, reason) {
   await pool.execute(
     `UPDATE transactions SET status='FAILED', failure_reason=?
       WHERE id=? AND status='PENDING_INFLOW'`,
-    [String(reason).slice(0, 255), id],
+    [String(reason).slice(0, 255), id]
   );
 }
 
@@ -59,14 +39,28 @@ export async function expireIfStale(id) {
   await pool.execute(
     `UPDATE transactions SET status='EXPIRED'
       WHERE id=? AND status='PENDING_INFLOW' AND expires_at < UTC_TIMESTAMP()`,
-    [id],
+    [id]
   );
 }
 
 export async function findByReference(reference) {
-  const [rows] = await pool.execute(
-    "SELECT * FROM transactions WHERE reference=? LIMIT 1",
-    [reference],
-  );
+  const [rows] = await pool.execute('SELECT * FROM transactions WHERE reference=? LIMIT 1', [reference]);
+  return rows[0] || null;
+}
+
+// Locks the row. Matches by our reference, Monnify's paymentReference, or the single-use virtual account.
+export async function lockByInflowKeys(conn, { refs, vaAccount }) {
+  const conds = [];
+  const params = [];
+  const clean = refs.filter(Boolean);
+  if (clean.length) {
+    const ph = clean.map(() => '?').join(',');
+    conds.push(`reference IN (${ph})`, `monnify_payment_ref IN (${ph})`);
+    params.push(...clean, ...clean);
+  }
+  if (vaAccount) { conds.push('va_account_number = ?'); params.push(String(vaAccount)); }
+  if (!conds.length) return null;
+  const [rows] = await conn.execute(
+    `SELECT * FROM transactions WHERE ${conds.join(' OR ')} LIMIT 1 FOR UPDATE`, params);
   return rows[0] || null;
 }

@@ -1,9 +1,8 @@
-// TODO: Implement this module.
-import crypto from "node:crypto";
+import crypto from 'node:crypto';
 
 export function newReferences() {
   const ts = Date.now().toString(36).toUpperCase();
-  const rnd = crypto.randomBytes(5).toString("hex").toUpperCase();
+  const rnd = crypto.randomBytes(5).toString('hex').toUpperCase();
   const reference = `BZP-${ts}-${rnd}`;
   return { reference, payoutReference: `${reference}-PO` };
 }
